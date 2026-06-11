@@ -382,6 +382,133 @@ def build_sii_monthly_list(data):
         result.append(entry)
     return result
 
+def parse_sii_daily_table(soup, source_name):
+    months_es = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre']
+    months_abbr = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
+    months_full = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
+
+    table = soup.find('table', id='table_export')
+    if not table:
+        print(f"  No se encontró tabla combinada para {source_name}")
+        return [], {}
+
+    rows = table.find_all('tr')
+    daily_data = []
+    month_totals = {}
+
+    for abbr, full in zip(months_abbr, months_full):
+        month_totals[full] = {"total": 0, "count": 0}
+
+    for row in rows:
+        cells = row.find_all(['td', 'th'])
+        if not cells:
+            continue
+        day_cell = cells[0]
+        day_text = day_cell.get_text(strip=True)
+        if not day_text or day_text == 'Día' or day_text == 'Promedio':
+            continue
+        try:
+            day_num = int(day_text)
+        except ValueError:
+            continue
+
+        for col_idx in range(1, min(len(cells), 13)):
+            val_text = cells[col_idx].get_text(strip=True)
+            if val_text and val_text != '&nbsp;':
+                month_name = months_full[col_idx - 1]
+                val = clean_num(val_text)
+                if val is not None:
+                    daily_data.append({
+                        'mes': month_name,
+                        'mes_num': col_idx,
+                        'dia': day_num,
+                        'valor': val
+                    })
+                    month_totals[month_name]["total"] += val
+                    month_totals[month_name]["count"] += 1
+
+    for m in months_full:
+        if month_totals[m]["count"] > 0:
+            month_totals[m]["promedio"] = round(month_totals[m]["total"] / month_totals[m]["count"], 2)
+        else:
+            month_totals[m]["promedio"] = None
+
+    daily_data.sort(key=lambda x: (x['mes_num'], x['dia']))
+    ultimo = daily_data[-1] if daily_data else None
+    return daily_data, ultimo
+
+
+def scrape_sii_uf():
+    url = "https://www.sii.cl/valores_y_fechas/uf/uf2026.htm"
+    r = requests.get(url, headers=HEADERS, timeout=30)
+    r.encoding = 'utf-8'
+    soup = BeautifulSoup(r.text, 'lxml')
+    daily_data, ultimo = parse_sii_daily_table(soup, "UF")
+    result = {
+        "diario": daily_data,
+        "ultimo": ultimo,
+        "fecha_consulta": datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    }
+    print(f"  UF OK - {len(daily_data)} registros diarios")
+    if ultimo:
+        print(f"  Último: {ultimo['mes']} día {ultimo['dia']} = ${ultimo['valor']:,.2f}")
+    return result
+
+
+def scrape_sii_dolar():
+    url = "https://www.sii.cl/valores_y_fechas/dolar/dolar2026.htm"
+    r = requests.get(url, headers=HEADERS, timeout=30)
+    r.encoding = 'utf-8'
+    soup = BeautifulSoup(r.text, 'lxml')
+    daily_data, ultimo = parse_sii_daily_table(soup, "Dólar")
+    result = {
+        "diario": daily_data,
+        "ultimo": ultimo,
+        "fecha_consulta": datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    }
+    print(f"  Dólar OK - {len(daily_data)} registros diarios")
+    if ultimo:
+        print(f"  Último: {ultimo['mes']} día {ultimo['dia']} = ${ultimo['valor']:,.2f}")
+    return result
+
+
+def add_daily_sheet(wb, sheet_name, headers, rows_data, chart_title, value_col_idx=2):
+    if sheet_name in wb.sheetnames:
+        ws = wb[sheet_name]
+        for i in range(ws.max_row, 0, -1):
+            ws.delete_rows(i)
+    else:
+        ws = wb.create_sheet(sheet_name)
+
+    for col, h in enumerate(headers, 1):
+        ws.cell(row=1, column=col, value=h)
+
+    row_num = 2
+    for entry in rows_data:
+        ws.cell(row=row_num, column=1, value=f"{entry['mes']} día {entry['dia']}")
+        ws.cell(row=row_num, column=2, value=entry['valor'])
+        ws.cell(row=row_num, column=3, value=entry['mes'])
+        ws.cell(row=row_num, column=4, value=entry['dia'])
+        row_num += 1
+
+    if row_num > 2:
+        chart = LineChart()
+        chart.title = chart_title
+        chart.style = 10
+        chart.y_axis.title = "Valor en $"
+        chart.height = 15
+        chart.width = 25
+
+        data_ref = Reference(ws, min_col=2, min_row=1, max_row=row_num - 1)
+        chart.add_data(data_ref, titles_from_data=True)
+        chart.set_categories(Reference(ws, min_col=1, min_row=2, max_row=row_num - 1))
+
+        s = chart.series[0]
+        s.graphicalProperties.line.width = 25000
+
+        ws.add_chart(chart, "E2")
+
+
 def add_charts_sheet(wb, sii_monthly):
     chart_sheet_name = "Graficos"
     if chart_sheet_name in wb.sheetnames:
@@ -450,7 +577,7 @@ def add_charts_sheet(wb, sii_monthly):
     ws.add_chart(chart2, "A30")
 
 
-def save_to_excel(previred_data, sii_data, sii_monthly):
+def save_to_excel(previred_data, sii_data, sii_monthly, uf_data=None, dolar_data=None):
     if os.path.exists(EXCEL_FILE):
         wb = load_workbook(EXCEL_FILE)
     else:
@@ -606,6 +733,18 @@ def save_to_excel(previred_data, sii_data, sii_monthly):
     # Sheet 7: Graficos
     add_charts_sheet(wb, sii_monthly)
 
+    # Sheet 8: UF Diaria
+    if uf_data and uf_data.get('diario'):
+        uf_rows = uf_data['diario']
+        uf_headers = ["Fecha", "Valor UF ($)", "Mes", "Día"]
+        add_daily_sheet(wb, "UF_Diaria", uf_headers, uf_rows, "UF Diaria 2026")
+
+    # Sheet 9: Dolar Diario
+    if dolar_data and dolar_data.get('diario'):
+        dolar_rows = dolar_data['diario']
+        dolar_headers = ["Fecha", "Valor Dolar ($)", "Mes", "Día"]
+        add_daily_sheet(wb, "Dolar_Diario", dolar_headers, dolar_rows, "Dólar Observado 2026")
+
     # Remove default sheet if exists
     if "Sheet" in wb.sheetnames:
         del wb["Sheet"]
@@ -613,7 +752,7 @@ def save_to_excel(previred_data, sii_data, sii_monthly):
     wb.save(EXCEL_FILE)
     print(f"Excel guardado: {EXCEL_FILE}")
 
-def save_to_json(previred_data, sii_data, sii_monthly):
+def save_to_json(previred_data, sii_data, sii_monthly, uf_data=None, dolar_data=None):
     payload = {
         "ultima_actualizacion": datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
         "año": 2026,
@@ -623,6 +762,10 @@ def save_to_json(previred_data, sii_data, sii_monthly):
             "fecha_consulta": sii_data.get('sii_fecha_consulta')
         }
     }
+    if uf_data:
+        payload["sii"]["uf_diaria"] = uf_data.get("diario", uf_data)
+    if dolar_data:
+        payload["sii"]["dolar_diario"] = dolar_data.get("diario", dolar_data)
     with open(JSON_FILE, 'w', encoding='utf-8') as f:
         json.dump(payload, f, ensure_ascii=False, indent=2)
     print(f"JSON guardado: {JSON_FILE}")
@@ -651,10 +794,28 @@ def main():
         sii_monthly = []
 
     print("\n" + "=" * 50)
+    print("Scraping UF Diaria - SII")
+    print("=" * 50)
+    try:
+        uf_data = scrape_sii_uf()
+    except Exception as e:
+        print(f"Error scraping UF: {e}")
+        uf_data = None
+
+    print("\n" + "=" * 50)
+    print("Scraping Dólar Observado - SII")
+    print("=" * 50)
+    try:
+        dolar_data = scrape_sii_dolar()
+    except Exception as e:
+        print(f"Error scraping Dólar: {e}")
+        dolar_data = None
+
+    print("\n" + "=" * 50)
     print("Guardando datos...")
     print("=" * 50)
-    save_to_excel(previred_data, sii_data, sii_monthly)
-    save_to_json(previred_data, sii_data, sii_monthly)
+    save_to_excel(previred_data, sii_data, sii_monthly, uf_data, dolar_data)
+    save_to_json(previred_data, sii_data, sii_monthly, uf_data, dolar_data)
 
     print("\n¡Scraping completado!")
 

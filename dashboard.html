@@ -33,6 +33,8 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f0f2f5; colo
 .card.green .value { color: #1b5e20; }
 .card.red { border-left-color: #c62828; }
 .card.red .value { color: #b71c1c; }
+.card.blue { border-left-color: #1565c0; }
+.card.blue .value { color: #0d47a1; }
 
 .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 15px; }
 .toolbar label { font-size: 13px; font-weight: 600; color: #333; }
@@ -93,12 +95,14 @@ tr:nth-child(even):hover td { background: #f0f4ff; }
     <button class="btn btn-primary btn-sm" id="btnLogs" onclick="toggleLogs()">
       Ver Log
     </button>
-    <a class="btn btn-primary btn-sm" href="/api/download/excel" download>
+    <a class="btn btn-primary btn-sm" id="excelLink" href="/api/download/excel" download>
       Descargar Excel
     </a>
     <div style="font-size:13px;opacity:.8;">
       Fuentes: <a href="https://www.previred.com/indicadores-previsionales/" target="_blank" style="color:#fff;">Previred</a> ·
-      <a href="https://www.sii.cl/valores_y_fechas/utm/utm2026.htm" target="_blank" style="color:#fff;">SII</a>
+      <a href="https://www.sii.cl/valores_y_fechas/utm/utm2026.htm" target="_blank" style="color:#fff;">SII UTM</a> ·
+      <a href="https://www.sii.cl/valores_y_fechas/uf/uf2026.htm" target="_blank" style="color:#fff;">UF</a> ·
+      <a href="https://www.sii.cl/valores_y_fechas/dolar/dolar2026.htm" target="_blank" style="color:#fff;">Dólar</a>
     </div>
   </div>
 </div>
@@ -118,6 +122,15 @@ tr:nth-child(even):hover td { background: #f0f4ff; }
 
 <script>
 let appData = null;
+
+function isGitHubPages() {
+  return !window.location.port && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+}
+
+function fmtDaily(n) {
+  if (n == null || isNaN(n)) return '-';
+  return Number(n).toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
 
 function toast(msg, type) {
   const c = document.getElementById('toastContainer');
@@ -175,6 +188,39 @@ function buildCards(p) {
     '<div class="card"><div class="label">APV Mensual</div><div class="value">' + fmt(p.apv_tope_mensual) + '</div><div class="sub">Anual: ' + fmt(p.apv_tope_anual) + '</div></div>' +
     '<div class="card"><div class="label">Depósito Convenido</div><div class="value">' + fmt(p.deposito_convenido_tope_anual) + '</div><div class="sub">Tope Anual (900 UF)</div></div>' +
     '</div>';
+}
+
+function buildDailyCards(uf, dolar) {
+  if (!uf || !dolar) return '';
+  const meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+  const ultimoMesUf = uf[uf.length - 1];
+  const ultimoDolar = dolar[dolar.length - 1];
+  return '<div class="cards">' +
+    '<div class="card gold"><div class="label">UF — Último disponible</div><div class="value">$' + fmtDaily(ultimoMesUf.valor) + '</div><div class="sub">' + ultimoMesUf.dia + ' ' + meses[ultimoMesUf.mes - 1] + '</div></div>' +
+    '<div class="card blue"><div class="label">Dólar Observado</div><div class="value">$' + fmtDaily(ultimoDolar.valor) + '</div><div class="sub">' + ultimoDolar.dia + ' ' + meses[ultimoDolar.mes - 1] + '</div></div>' +
+    '</div>';
+}
+
+function renderDailyTable(data, label, moneda) {
+  if (!data || data.length === 0) return '<div class="no-data">No hay datos de ' + label + ' disponibles.</div>';
+  const meses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+  const diasUnicos = [...new Set(data.map(d => d.dia))].sort((a, b) => a - b);
+  let html = '<div class="table-wrap"><table><thead><tr><th>Día</th>';
+  const mesesEnData = [...new Set(data.map(d => d.mes))].sort((a, b) => a - b);
+  for (const m of mesesEnData) {
+    html += '<th class="text-right">' + meses[m - 1] + '</th>';
+  }
+  html += '</tr></thead><tbody>';
+  for (const dia of diasUnicos) {
+    html += '<tr><td><strong>' + dia + '</strong></td>';
+    for (const m of mesesEnData) {
+      const entry = data.find(d => d.dia === dia && d.mes === m);
+      html += '<td class="text-right monto">' + (entry ? moneda + ' ' + fmtDaily(entry.valor) : '&#8211;') + '</td>';
+    }
+    html += '</tr>';
+  }
+  html += '</tbody></table></div>';
+  return html;
 }
 
 let sortState = { col: null, asc: true, table: null };
@@ -253,6 +299,8 @@ function renderAfpChart(p) {
 function buildContent(data) {
   const p = data.previred || {};
   const sii = data.sii?.mensual || [];
+  const ufDaily = data.sii?.uf_diaria || [];
+  const dolarDaily = data.sii?.dolar_diario || [];
 
   const meses = sii.map(m => m.mes);
   const utmVals = sii.map(m => m.utm);
@@ -261,6 +309,8 @@ function buildContent(data) {
   const varAnual = sii.map(m => m.var_anual);
 
   let html = buildCards(p);
+
+  html += buildDailyCards(ufDaily, dolarDaily);
 
   html += '<div class="grid-2">' +
     '<div class="panel"><h2>UTM / UTA 2026</h2><canvas id="chartUtm"></canvas></div>' +
@@ -285,6 +335,21 @@ function buildContent(data) {
     '</div>' +
   '</div>' +
   '<div id="siiTableContainer">' + renderSiiTable(sii, null, true) + '</div></div>';
+
+  if (ufDaily.length > 0 || dolarDaily.length > 0) {
+    html += '<div class="grid-2">';
+    if (ufDaily.length > 0) {
+      html += '<div class="panel full"><div class="panel-header"><h2>UF Diaria 2026</h2></div>' +
+        '<canvas id="chartUfDaily" style="max-height:250px;"></canvas>' +
+        '<div id="ufDailyTable" style="margin-top:12px;">' + renderDailyTable(ufDaily, 'UF', '$') + '</div></div>';
+    }
+    if (dolarDaily.length > 0) {
+      html += '<div class="panel full"><div class="panel-header"><h2>Dólar Observado 2026</h2></div>' +
+        '<canvas id="chartDolarDaily" style="max-height:250px;"></canvas>' +
+        '<div id="dolarDailyTable" style="margin-top:12px;">' + renderDailyTable(dolarDaily, 'Dólar', 'US$') + '</div></div>';
+    }
+    html += '</div>';
+  }
 
   const afpNames = ['Capital', 'Cuprum', 'Habitat', 'PlanVital', 'ProVida', 'Modelo', 'Uno'];
   let afpRows = '';
@@ -357,7 +422,7 @@ function buildContent(data) {
   return html;
 }
 
-function initCharts(sii) {
+function initCharts(sii, ufDaily, dolarDaily) {
   const meses = sii.map(m => m.mes);
   const utmVals = sii.map(m => m.utm);
   const varMensual = sii.map(m => m.var_mensual);
@@ -399,12 +464,62 @@ function initCharts(sii) {
       scales: { y: { ticks: { callback: v => v + '%' } } }
     }
   });
+
+  if (ufDaily && ufDaily.length > 0) {
+    const meses = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+    const labels = ufDaily.map(d => d.dia + ' ' + meses[d.mes - 1]);
+    const valores = ufDaily.map(d => d.valor);
+    new Chart(document.getElementById('chartUfDaily'), {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'UF ($)', data: valores,
+          borderColor: '#d4a017', backgroundColor: 'rgba(212,160,23,0.1)',
+          tension: 0.3, fill: true, pointRadius: 2, pointHoverRadius: 5
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: true,
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: ctx => '$ ' + ctx.parsed.y.toLocaleString('es-CL') } }
+        },
+        scales: { y: { ticks: { callback: v => '$' + Number(v).toLocaleString('es-CL') } } }
+      }
+    });
+  }
+
+  if (dolarDaily && dolarDaily.length > 0) {
+    const meses = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+    const labels = dolarDaily.map(d => d.dia + ' ' + meses[d.mes - 1]);
+    const valores = dolarDaily.map(d => d.valor);
+    new Chart(document.getElementById('chartDolarDaily'), {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'Dólar ($)', data: valores,
+          borderColor: '#1565c0', backgroundColor: 'rgba(21,101,192,0.1)',
+          tension: 0.3, fill: true, pointRadius: 2, pointHoverRadius: 5
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: true,
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: ctx => '$ ' + ctx.parsed.y.toLocaleString('es-CL') } }
+        },
+        scales: { y: { ticks: { callback: v => '$' + Number(v).toLocaleString('es-CL') } } }
+      }
+    });
+  }
 }
 
 async function loadData() {
   try {
-    const useApi = window.location.port !== '' && window.location.port !== undefined;
-    const url = useApi ? '/api/data?_=' + Date.now() : './dashboard_data.json?_=' + Date.now();
+    const gh = isGitHubPages();
+    const url = gh ? './dashboard_data.json?_=' + Date.now() : '/api/data?_=' + Date.now();
     const res = await fetch(url);
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json();
@@ -416,11 +531,22 @@ async function loadData() {
     app.className = 'fade-in';
 
     const sii = data.sii?.mensual || [];
-    if (sii.length > 0) initCharts(sii);
+    const ufDaily = data.sii?.uf_diaria || [];
+    const dolarDaily = data.sii?.dolar_diario || [];
+    if (sii.length > 0 || ufDaily.length > 0 || dolarDaily.length > 0) initCharts(sii, ufDaily, dolarDaily);
   } catch (e) {
     document.getElementById('app').innerHTML = '<div class="error">Error al cargar datos. ' +
-      (window.location.port ? 'Asegúrate de que el servidor esté corriendo.' : 'Ejecute primero el scraper.') +
+      (isGitHubPages() ? 'Ejecute primero el scraper para generar dashboard_data.json.' : 'Asegúrate de que el servidor esté corriendo.') +
       '</div>';
+  }
+}
+
+function initUI() {
+  const gh = isGitHubPages();
+  if (gh) {
+    document.getElementById('btnRefresh').style.display = 'none';
+    document.getElementById('btnLogs').style.display = 'none';
+    document.getElementById('excelLink').href = './indicadores_previsionales.xlsx';
   }
 }
 
@@ -459,7 +585,7 @@ function toggleLogs() {
   }
 }
 
-document.addEventListener('DOMContentLoaded', loadData);
+document.addEventListener('DOMContentLoaded', () => { initUI(); loadData(); });
 </script>
 </body>
 </html>
