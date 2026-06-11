@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="es-CL">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dashboard Indicadores Previsionales 2026</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f0f2f5; color: #333; padding: 20px; }
+
+.header { background: linear-gradient(135deg, #003366, #00509e); color: #fff; padding: 25px 30px; border-radius: 12px; margin-bottom: 25px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
+.header h1 { font-size: 24px; }
+.header .update { font-size: 13px; opacity: 0.9; }
+
+.btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 18px; border: none; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all .2s; text-decoration: none; }
+.btn-primary { background: #fff; color: #003366; }
+.btn-primary:hover { background: #e0e0e0; }
+.btn-primary:disabled { opacity: .5; cursor: not-allowed; }
+.btn-sm { padding: 5px 12px; font-size: 12px; }
+
+.spin { display: inline-block; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 25px; }
+.card { background: #fff; border-radius: 10px; padding: 18px; box-shadow: 0 2px 8px rgba(0,0,0,.08); border-left: 4px solid #00509e; }
+.card .label { font-size: 12px; color: #666; text-transform: uppercase; letter-spacing: 0.5px; }
+.card .value { font-size: 22px; font-weight: 700; margin-top: 5px; color: #003366; }
+.card .sub { font-size: 12px; color: #888; margin-top: 3px; }
+.card.gold { border-left-color: #d4a017; }
+.card.gold .value { color: #b8860b; }
+.card.green { border-left-color: #2e7d32; }
+.card.green .value { color: #1b5e20; }
+.card.red { border-left-color: #c62828; }
+.card.red .value { color: #b71c1c; }
+
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 15px; }
+.toolbar label { font-size: 13px; font-weight: 600; color: #333; }
+.toolbar select, .toolbar input { padding: 5px 10px; border: 1px solid #ccc; border-radius: 5px; font-size: 13px; }
+
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 25px; }
+@media (max-width: 900px) { .grid-2 { grid-template-columns: 1fr; } }
+
+.panel { background: #fff; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,.08); padding: 20px; }
+.panel h2 { font-size: 16px; color: #003366; margin-bottom: 12px; border-bottom: 2px solid #e0e0e0; padding-bottom: 8px; }
+.panel.full { grid-column: 1 / -1; }
+canvas { max-height: 300px; width: 100% !important; }
+
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 8px; }
+th { background: #003366; color: #fff; padding: 8px 10px; text-align: left; font-weight: 600; cursor: pointer; user-select: none; position: relative; }
+th:hover { background: #004080; }
+th .sort-icon { margin-left: 4px; opacity: .5; }
+th.sort-asc .sort-icon, th.sort-desc .sort-icon { opacity: 1; }
+td { padding: 7px 10px; border-bottom: 1px solid #eee; }
+tr:hover td { background: #f5f8ff; }
+tr:nth-child(even) td { background: #fafbfc; }
+tr:nth-child(even):hover td { background: #f0f4ff; }
+.text-right { text-align: right; }
+.text-center { text-align: center; }
+.monto { font-weight: 600; }
+.pct { color: #555; }
+.loading { text-align: center; padding: 60px; font-size: 18px; color: #888; }
+.error { color: #c62828; text-align: center; padding: 40px; }
+.fade-in { animation: fadeIn .3s ease; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+.toast-container { position: fixed; top: 20px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 8px; }
+.toast { padding: 12px 20px; border-radius: 8px; color: #fff; font-size: 14px; font-weight: 500; box-shadow: 0 4px 12px rgba(0,0,0,.15); animation: toastIn .3s ease, toastOut .3s ease 3.7s forwards; min-width: 280px; }
+.toast-success { background: #2e7d32; }
+.toast-error { background: #c62828; }
+.toast-info { background: #00509e; }
+@keyframes toastIn { from { transform: translateX(100px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+@keyframes toastOut { from { transform: translateX(0); opacity: 1; } to { transform: translateX(100px); opacity: 0; } }
+
+.no-data { color: #999; text-align: center; padding: 15px; font-style: italic; }
+
+.panel-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+.panel-header h2 { margin-bottom: 0; border: none; padding-bottom: 0; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <h1> Dashboard Indicadores Previsionales 2026</h1>
+    <div class="update" id="updateInfo">Cargando...</div>
+  </div>
+  <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+    <button class="btn btn-primary" id="btnRefresh" onclick="refreshData()">
+      <span id="refreshIcon"> </span> Refrescar Datos
+    </button>
+    <button class="btn btn-primary btn-sm" id="btnLogs" onclick="toggleLogs()">
+      Ver Log
+    </button>
+    <a class="btn btn-primary btn-sm" href="/api/download/excel" download>
+      Descargar Excel
+    </a>
+    <div style="font-size:13px;opacity:.8;">
+      Fuentes: <a href="https://www.previred.com/indicadores-previsionales/" target="_blank" style="color:#fff;">Previred</a> ·
+      <a href="https://www.sii.cl/valores_y_fechas/utm/utm2026.htm" target="_blank" style="color:#fff;">SII</a>
+    </div>
+  </div>
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+<div id="logPanel" style="display:none; background:#1e1e1e; color:#d4d4d4; border-radius:10px; padding:15px; margin-bottom:20px; font-family:'Consolas',monospace; font-size:12px; max-height:400px; overflow-y:auto;">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+    <strong style="color:#fff;">Historial de Ejecuciones</strong>
+    <span>
+      <button class="btn btn-primary btn-sm" onclick="loadLogs()">Refrescar</button>
+      <button class="btn btn-primary btn-sm" onclick="toggleLogs()">Cerrar</button>
+    </span>
+  </div>
+  <pre id="logContent" style="white-space:pre-wrap; margin:0;"></pre>
+</div>
+<div id="app" class="loading">Cargando indicadores...</div>
+
+<script>
+let appData = null;
+
+function toast(msg, type) {
+  const c = document.getElementById('toastContainer');
+  const t = document.createElement('div');
+  t.className = 'toast toast-' + type;
+  t.textContent = msg;
+  c.appendChild(t);
+  setTimeout(() => { if (t.parentNode) t.remove(); }, 4000);
+}
+
+async function refreshData() {
+  const btn = document.getElementById('btnRefresh');
+  const icon = document.getElementById('refreshIcon');
+  btn.disabled = true;
+  icon.innerHTML = '&#8635;';
+  icon.className = 'spin';
+
+  try {
+    const res = await fetch('/api/refresh');
+    const result = await res.json();
+    if (result.success) {
+      toast(' Datos actualizados: ' + result.timestamp, 'success');
+      await loadData();
+    } else {
+      toast(' Error: ' + (result.error || 'desconocido'), 'error');
+    }
+  } catch (e) {
+    toast(' Error de conexión con el servidor', 'error');
+  }
+
+  icon.innerHTML = ' ';
+  icon.className = '';
+  btn.disabled = false;
+}
+
+function fmt(n) {
+  if (n == null || isNaN(n)) return '-';
+  return '$ ' + Number(n).toLocaleString('es-CL', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+}
+function fmtPct(n) {
+  if (n == null || isNaN(n)) return '-';
+  return Number(n).toFixed(1) + '%';
+}
+function fmtNum(n) {
+  if (n == null || isNaN(n)) return '-';
+  return Number(n).toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function buildCards(p) {
+  return '<div class="cards">' +
+    '<div class="card gold"><div class="label">UF al 31 Mayo 2026</div><div class="value">' + fmt(p.uf_mayo) + '</div><div class="sub">Abril: ' + fmt(p.uf_abril) + '</div></div>' +
+    '<div class="card gold"><div class="label">UTM Mayo 2026</div><div class="value">' + fmt(p.utm_mayo) + '</div><div class="sub">UTA: ' + fmt(p.uta_mayo) + '</div></div>' +
+    '<div class="card green"><div class="label">Renta Mínima</div><div class="value">' + fmt(p.renta_minima_dependientes) + '</div><div class="sub">Casa Particular: ' + fmt(p.renta_minima_casa_particular) + '</div></div>' +
+    '<div class="card red"><div class="label">Tope AFP (90 UF)</div><div class="value">' + fmt(p.tope_afp_90uf) + '</div><div class="sub">IPS: ' + fmt(p.tope_ips_60uf) + '</div></div>' +
+    '<div class="card"><div class="label">APV Mensual</div><div class="value">' + fmt(p.apv_tope_mensual) + '</div><div class="sub">Anual: ' + fmt(p.apv_tope_anual) + '</div></div>' +
+    '<div class="card"><div class="label">Depósito Convenido</div><div class="value">' + fmt(p.deposito_convenido_tope_anual) + '</div><div class="sub">Tope Anual (900 UF)</div></div>' +
+    '</div>';
+}
+
+let sortState = { col: null, asc: true, table: null };
+
+function renderSiiTable(sii, sortCol, sortAsc) {
+  let filtered = [...sii];
+  const desde = parseInt(document.getElementById('filtroDesde')?.value || '1');
+  const hasta = parseInt(document.getElementById('filtroHasta')?.value || '12');
+  filtered = filtered.filter(m => m.mes_num >= desde && m.mes_num <= hasta);
+
+  if (sortCol != null) {
+    const keyMap = ['mes_num', 'utm', 'uta', 'ipc', 'var_mensual', 'var_acum', 'var_anual'];
+    const key = keyMap[sortCol];
+    filtered.sort((a, b) => {
+      const va = a[key] == null ? -Infinity : a[key];
+      const vb = b[key] == null ? -Infinity : b[key];
+      return sortAsc ? (va - vb) : (vb - va);
+    });
+  }
+
+  if (filtered.length === 0) return '<div class="no-data">No hay datos para el rango seleccionado</div>';
+
+  const ths = ['Mes', 'UTM', 'UTA', 'IPC', 'Var. Mens.', 'Var. Acum.', 'Var. 12m'];
+  const align = ['', 'text-right', 'text-right', 'text-center', 'text-center', 'text-center', 'text-center'];
+
+  let html = '<div class="table-wrap"><table><thead><tr>';
+  for (let i = 0; i < ths.length; i++) {
+    const cls = align[i] + (sortCol === i ? (sortAsc ? ' sort-asc' : ' sort-desc') : '');
+    html += '<th class="' + cls + '" onclick="sortTable(' + i + ')">' + ths[i] +
+      ' <span class="sort-icon">' + (sortCol === i ? (sortAsc ? '&#9650;' : '&#9660;') : '&#9650;&#9660;') + '</span></th>';
+  }
+  html += '</tr></thead><tbody>';
+
+  for (const m of filtered) {
+    html += '<tr>' +
+      '<td><strong>' + m.mes + '</strong></td>' +
+      '<td class="text-right monto">' + fmt(m.utm) + '</td>' +
+      '<td class="text-right monto">' + fmt(m.uta) + '</td>' +
+      '<td class="text-center">' + fmtNum(m.ipc) + '</td>' +
+      '<td class="text-center pct">' + fmtPct(m.var_mensual) + '</td>' +
+      '<td class="text-center pct">' + fmtPct(m.var_acum) + '</td>' +
+      '<td class="text-center pct">' + fmtPct(m.var_anual) + '</td>' +
+      '</tr>';
+  }
+  html += '</tbody></table></div>';
+  return html;
+}
+
+function sortTable(col) {
+  if (sortState.col === col) {
+    sortState.asc = !sortState.asc;
+  } else {
+    sortState.col = col;
+    sortState.asc = true;
+  }
+  const sii = appData?.sii?.mensual || [];
+  const el = document.getElementById('siiTableContainer');
+  if (el) el.innerHTML = renderSiiTable(sii, sortState.col, sortState.asc);
+}
+
+function onFilterChange() {
+  sortState.col = null;
+  sortState.asc = true;
+  const sii = appData?.sii?.mensual || [];
+  const el = document.getElementById('siiTableContainer');
+  if (el) el.innerHTML = renderSiiTable(sii, null, true);
+}
+
+function renderAfpChart(p) {
+  const names = ['Capital', 'Cuprum', 'Habitat', 'PlanVital', 'ProVida', 'Modelo', 'Uno'];
+  const totals = names.map(n => p['afp_' + n.toLowerCase() + '_total']);
+  const indeps = names.map(n => p['afp_' + n.toLowerCase() + '_independiente']);
+  return { names, totals, indeps };
+}
+
+function buildContent(data) {
+  const p = data.previred || {};
+  const sii = data.sii?.mensual || [];
+
+  const meses = sii.map(m => m.mes);
+  const utmVals = sii.map(m => m.utm);
+  const utaVals = sii.map(m => m.uta);
+  const varMensual = sii.map(m => m.var_mensual);
+  const varAnual = sii.map(m => m.var_anual);
+
+  let html = buildCards(p);
+
+  html += '<div class="grid-2">' +
+    '<div class="panel"><h2>UTM / UTA 2026</h2><canvas id="chartUtm"></canvas></div>' +
+    '<div class="panel"><h2>Variación IPC 2026</h2><canvas id="chartIpc"></canvas></div>' +
+    '</div>';
+
+  const minMes = Math.min(...sii.map(m => m.mes_num));
+  const maxMes = Math.max(...sii.map(m => m.mes_num));
+  const mesesNombres = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+
+  html += '<div class="panel full"><div class="panel-header">' +
+    '<h2>UTM / UTA / IPC 2026 — SII</h2>' +
+    '<div class="toolbar" style="margin-bottom:0;">' +
+      '<label>Desde:</label>' +
+      '<select id="filtroDesde" onchange="onFilterChange()">' +
+        mesesNombres.map((n, i) => i >= minMes && i <= maxMes ? '<option value="' + i + '"' + (i === minMes ? ' selected' : '') + '>' + n + '</option>' : '').join('') +
+      '</select>' +
+      '<label>Hasta:</label>' +
+      '<select id="filtroHasta" onchange="onFilterChange()">' +
+        mesesNombres.map((n, i) => i >= minMes && i <= maxMes ? '<option value="' + i + '"' + (i === maxMes ? ' selected' : '') + '>' + n + '</option>' : '').join('') +
+      '</select>' +
+    '</div>' +
+  '</div>' +
+  '<div id="siiTableContainer">' + renderSiiTable(sii, null, true) + '</div></div>';
+
+  const afpNames = ['Capital', 'Cuprum', 'Habitat', 'PlanVital', 'ProVida', 'Modelo', 'Uno'];
+  let afpRows = '';
+  for (const n of afpNames) {
+    const k = n.toLowerCase();
+    afpRows += '<tr><td><strong>' + n + '</strong></td>' +
+      '<td class="text-center">' + fmtPct(p['afp_' + k + '_trabajador']) + '</td>' +
+      '<td class="text-center">' + fmtPct(p['afp_' + k + '_empleador']) + '</td>' +
+      '<td class="text-center"><strong>' + fmtPct(p['afp_' + k + '_total']) + '</strong></td>' +
+      '<td class="text-center">' + fmtPct(p['afp_' + k + '_independiente']) + '</td></tr>';
+  }
+
+  const afcRows = [
+    ['Plazo Indefinido', p.afc_indefinido_empleador, p.afc_indefinido_trabajador],
+    ['Plazo Fijo', p.afc_plazofijo_empleador, null],
+    ['Indefinido 11+ a', p.afc_11anios_empleador, null],
+    ['Casa Particular', p.afc_casaparticular_empleador, null]
+  ].map(r => '<tr><td>' + r[0] + '</td><td class="text-center">' + fmtPct(r[1]) + '</td><td class="text-center">' + (r[2] != null ? fmtPct(r[2]) : '&#8211;') + '</td></tr>').join('');
+
+  const rmRows = [
+    ['Dependientes e Independientes', p.renta_minima_dependientes],
+    ['Menores 18 / Mayores 65', p.renta_minima_menores65],
+    ['Casa Particular', p.renta_minima_casa_particular],
+    ['Fines no remuneracionales', p.renta_minima_no_remuneracional]
+  ].map(r => '<tr><td>' + r[0] + '</td><td class="text-right monto">' + fmt(r[1]) + '</td></tr>').join('');
+
+  const afamRows = [
+    ['Tramo 1 (A)', p.asignacion_familiar_tramo1, p.asignacion_familiar_tramo1_renta],
+    ['Tramo 2 (B)', p.asignacion_familiar_tramo2, p.asignacion_familiar_tramo2_renta],
+    ['Tramo 3 (C)', p.asignacion_familiar_tramo3, p.asignacion_familiar_tramo3_renta],
+    ['Tramo 4 (D)', p.asignacion_familiar_tramo4_monto, p.asignacion_familiar_tramo4_renta]
+  ].map(r => '<tr><td><strong>' + r[0] + '</strong></td><td class="text-right monto">' + (r[0].includes('4') ? '&#8211;' : fmt(r[1])) + '</td><td>' + (r[2] || '&#8211;') + '</td></tr>').join('');
+
+  html += '<div class="grid-2">' +
+    '<div class="panel">' +
+      '<h2>Tasas de Cotización AFP</h2><div class="table-wrap">' +
+      '<table><thead><tr><th>AFP</th><th class="text-center">Trabajador</th><th class="text-center">Empleador</th><th class="text-center">Total</th><th class="text-center">Independiente</th></tr></thead><tbody>' + afpRows + '</tbody></table></div>' +
+    '</div>' +
+    '<div class="panel">' +
+      '<h2>Seguro de Cesantía (AFC)</h2><div class="table-wrap">' +
+      '<table><thead><tr><th>Contrato</th><th class="text-center">Empleador</th><th class="text-center">Trabajador</th></tr></thead><tbody>' + afcRows + '</tbody></table></div>' +
+      '<div style="margin-top:20px"><h2>Seguro Social / SIS</h2>' +
+      '<table><tr><td>Seguro Social (Expectativa de Vida)</td><td class="text-center"><strong>' + fmtPct(p.seguro_social) + '</strong></td></tr>' +
+      '<tr><td>Tasa SIS</td><td class="text-center"><strong>' + fmtPct(p.sis_tasa) + '</strong></td></tr></table></div>' +
+    '</div>' +
+    '</div>';
+
+  html += '<div class="grid-2">' +
+    '<div class="panel">' +
+      '<h2>Rentas Mínimas Imponibles</h2>' +
+      '<table><thead><tr><th>Tipo</th><th class="text-right">Monto</th></tr></thead><tbody>' + rmRows + '</tbody></table>' +
+      '<div style="margin-top:20px"><h2>Asignación Familiar</h2><div class="table-wrap">' +
+      '<table><thead><tr><th>Tramo</th><th class="text-right">Monto</th><th>Requisito Renta</th></tr></thead><tbody>' + afamRows + '</tbody></table></div></div>' +
+    '</div>' +
+    '<div class="panel">' +
+      '<h2>Distribución 7% Salud (CCAF)</h2>' +
+      '<table><tr><td>CCAF</td><td class="text-center"><strong>' + fmtPct(p.salud_ccaf) + '</strong></td><td>Renta Imponible</td></tr>' +
+      '<tr><td>FONASA</td><td class="text-center"><strong>' + fmtPct(p.salud_fonasa) + '</strong></td><td>Renta Imponible</td></tr></table>' +
+      '<div style="margin-top:20px"><h2>Trabajos Pesados</h2>' +
+      '<table><thead><tr><th>Tipo</th><th class="text-center">Empleador</th><th class="text-center">Trabajador</th></tr></thead>' +
+      '<tr><td>Trabajo Pesado</td><td class="text-center">' + fmtPct(p.trabajo_pesado_empleador) + '</td><td class="text-center">' + fmtPct(p.trabajo_pesado_trabajador) + '</td></tr>' +
+      '<tr><td>Trabajo Menos Pesado</td><td class="text-center">' + fmtPct(p.trabajo_menos_pesado_empleador) + '</td><td class="text-center">' + fmtPct(p.trabajo_menos_pesado_trabajador) + '</td></tr></table></div>' +
+      '<div style="margin-top:20px"><h2>APV / Depósito Convenido</h2>' +
+      '<table><tr><td>APV Tope Mensual (50 UF)</td><td class="text-right"><strong>' + fmt(p.apv_tope_mensual) + '</strong></td></tr>' +
+      '<tr><td>APV Tope Anual (600 UF)</td><td class="text-right"><strong>' + fmt(p.apv_tope_anual) + '</strong></td></tr>' +
+      '<tr><td>Depósito Convenido Tope Anual (900 UF)</td><td class="text-right"><strong>' + fmt(p.deposito_convenido_tope_anual) + '</strong></td></tr></table></div>' +
+    '</div>' +
+    '</div>';
+
+  return html;
+}
+
+function initCharts(sii) {
+  const meses = sii.map(m => m.mes);
+  const utmVals = sii.map(m => m.utm);
+  const varMensual = sii.map(m => m.var_mensual);
+  const varAnual = sii.map(m => m.var_anual);
+
+  new Chart(document.getElementById('chartUtm'), {
+    type: 'line',
+    data: {
+      labels: meses,
+      datasets: [{
+        label: 'UTM ($)', data: utmVals,
+        borderColor: '#003366', backgroundColor: 'rgba(0,51,102,0.1)',
+        tension: 0.3, fill: true, pointRadius: 4, pointHoverRadius: 6
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: true,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: ctx => '$ ' + ctx.parsed.y.toLocaleString('es-CL') } }
+      },
+      scales: { y: { ticks: { callback: v => '$' + Number(v).toLocaleString('es-CL') } } }
+    }
+  });
+
+  new Chart(document.getElementById('chartIpc'), {
+    type: 'line',
+    data: {
+      labels: meses,
+      datasets: [
+        { label: 'Var. Mensual %', data: varMensual, borderColor: '#2e7d32', tension: 0.3, pointRadius: 3 },
+        { label: 'Var. Anual %', data: varAnual, borderColor: '#c62828', tension: 0.3, pointRadius: 3 },
+        { label: 'Var. Acumulada %', data: sii.map(m => m.var_acum), borderColor: '#1565c0', tension: 0.3, pointRadius: 3 }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: true,
+      plugins: { legend: { position: 'top', labels: { boxWidth: 12, font: { size: 11 } } } },
+      scales: { y: { ticks: { callback: v => v + '%' } } }
+    }
+  });
+}
+
+async function loadData() {
+  try {
+    const useApi = window.location.port !== '' && window.location.port !== undefined;
+    const url = useApi ? '/api/data?_=' + Date.now() : './dashboard_data.json?_=' + Date.now();
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    appData = data;
+
+    document.getElementById('updateInfo').textContent = 'Actualizado: ' + (data.ultima_actualizacion || '-');
+    const app = document.getElementById('app');
+    app.innerHTML = buildContent(data);
+    app.className = 'fade-in';
+
+    const sii = data.sii?.mensual || [];
+    if (sii.length > 0) initCharts(sii);
+  } catch (e) {
+    document.getElementById('app').innerHTML = '<div class="error">Error al cargar datos. ' +
+      (window.location.port ? 'Asegúrate de que el servidor esté corriendo.' : 'Ejecute primero el scraper.') +
+      '</div>';
+  }
+}
+
+async function loadLogs() {
+  const el = document.getElementById('logContent');
+  el.textContent = 'Cargando logs...';
+  try {
+    const res = await fetch('/api/logs?_=' + Date.now());
+    const data = await res.json();
+    if (data.lines && data.lines.length > 0) {
+      el.innerHTML = data.lines.map(l => {
+        const text = l.replace(/</g,'&lt;');
+        const cls = l.includes('ERROR') ? 'color:#ff6b6b;font-weight:bold' :
+                    l.includes('exitosa') ? 'color:#69db7c' :
+                    l.includes('Iniciando') ? 'color:#74c0fc' : '';
+        return '<span style="display:block;' + cls + '">' + text + '</span>';
+      }).join('') + '<span style="color:#888;margin-top:8px;display:block;">Total: ' + data.total + ' lineas</span>';
+    } else {
+      el.innerHTML = '<span style="color:#888;">No hay registros de ejecucion aun.</span>';
+    }
+  } catch(e) {
+    el.innerHTML = '<span style="color:#ff6b6b;">Error al cargar logs</span>';
+  }
+}
+
+function toggleLogs() {
+  const panel = document.getElementById('logPanel');
+  const btn = document.getElementById('btnLogs');
+  if (panel.style.display === 'none') {
+    panel.style.display = 'block';
+    btn.textContent = 'Ocultar Log';
+    loadLogs();
+  } else {
+    panel.style.display = 'none';
+    btn.textContent = 'Ver Log';
+  }
+}
+
+document.addEventListener('DOMContentLoaded', loadData);
+</script>
+</body>
+</html>

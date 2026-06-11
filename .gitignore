@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# Entorno
+.env
+venv/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+scraper_log.txt
+server_out.txt
+server_err.txt
+
+# Datos generados
+dashboard_data.json
+indicadores_previsionales.xlsx
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# Git
+*.orig
