@@ -24,8 +24,8 @@ server_out.txt
 server_err.txt
 
 # Datos generados
-dashboard_data.json
-indicadores_previsionales.xlsx
+# dashboard_data.json
+# indicadores_previsionales.xlsx
 
 # Windows
 Thumbs.db
