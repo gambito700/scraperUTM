@@ -29,7 +29,7 @@ Ideal para contadores, analistas de RR.HH. y cualquier profesional que necesite 
 scraperUTM/
 ├── server.py                        # Servidor HTTP (API + archivos estáticos)
 ├── scraper.py                       # Script principal de scraping (Python)
-├── dashboard.html                   # Dashboard web con Chart.js
+├── index.html                       # Dashboard web con Chart.js
 ├── dashboard_data.json              # Datos JSON para el dashboard
 ├── indicadores_previsionales.xlsx   # Excel descargable con 7 hojas + gráficos
 ├── scraper_log.txt                  # Historial persistente de ejecuciones
@@ -44,7 +44,7 @@ scraperUTM/
 
 | Endpoint | Método | Descripción |
 |---|---|---|
-| `/dashboard.html` | GET | Dashboard web interactivo |
+| `/` | GET | Dashboard web interactivo |
 | `/api/data` | GET | Datos JSON actuales |
 | `/api/refresh` | GET | Ejecuta el scraper y actualiza datos |
 | `/api/logs` | GET | Últimas 100 líneas del historial de ejecuciones |
@@ -94,7 +94,7 @@ Esto inicia el servidor en `http://localhost:8080` y abre automáticamente el da
 .\run_scraper.ps1
 ```
 
-O abrir `dashboard.html` directamente en el navegador (sin botón de refrescar).
+O abrir `index.html` directamente en el navegador (sin botón de refrescar).
 
 ---
 

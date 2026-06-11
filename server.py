@@ -162,7 +162,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
 if __name__ == "__main__":
     server = http.server.HTTPServer(("0.0.0.0", PORT), Handler)
-    url = f"http://localhost:{PORT}/dashboard.html"
+    url = f"http://localhost:{PORT}/"
     print(f" Servidor iniciado en http://localhost:{PORT}")
     print(f" Dashboard: {url}")
     print(f" API Refresh: http://localhost:{PORT}/api/refresh")
